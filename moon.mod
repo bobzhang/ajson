@@ -15,14 +15,14 @@ version = "0.1.0"
 
 readme = "README.mbt.md"
 
-repository = ""
+repository = "https://github.com/bobzhang/ajson"
 
 license = "Apache-2.0"
 
-keywords = [ ]
+keywords = [ "json", "streaming", "async", "parser", "lexscan" ]
 
 preferred_target = "wasm"
 
-description = ""
+description = "Asynchronous streaming JSON pull parser built on lexscan"
 
 warnings = "-implicit_impl_as_method-result_error_return"
