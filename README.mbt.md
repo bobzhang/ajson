@@ -158,40 +158,48 @@ moon run --target native --release cmd/benchmark
 
 ### Where the time goes: async compilation
 
-Most of the gap is the cost of `async` itself, not of JSON. `cmd/asynctax`
+Much of the gap is the cost of `async` itself, not of JSON. `cmd/asynctax`
 runs the same capture-heavy `lexscan` (one object member, as in ajson's fast
 scanner) 200,000 times over the three targets, the streaming ones fed 64 KiB
-chunks (milliseconds):
+chunks. Times in milliseconds, each compiler with its own baselines; the ratio
+is `AsyncLexbuf` over `Lexbuf`:
 
-| target | `StringScanner` | `Lexbuf` (sync) | `AsyncLexbuf`, released | `AsyncLexbuf`, master |
-| ------ | --------------- | --------------- | ----------------------- | --------------------- |
-| native | 9               | 18              | 141 (7.6x `Lexbuf`)     | 63 (3.5x)             |
-| js     | 19              | 49              | 245 (4.8x)              | 83 (1.7x)             |
-| wasm   | 16              | 43              | 400 (8.2x)              | 200 (4.7x)            |
+| target, moonc    | `StringScanner` | `Lexbuf` (sync) | `AsyncLexbuf` | ratio |
+| ---------------- | --------------- | --------------- | ------------- | ----- |
+| native, released | 10              | 18.6            | 141           | 7.6x  |
+| native, master   | 9               | 17.8            | 63            | 3.5x  |
+| js, released     | 22              | 50.8            | 245           | 4.8x  |
+| js, master       | 19              | 49.2            | 83            | 1.7x  |
+| wasm, released   | 20              | 48.6            | 400           | 8.2x  |
+| wasm, master     | 16              | 42.5            | 200           | 4.7x  |
 
 ```bash
 moon run --target native --release cmd/asynctax
 ```
 
-Only about one scan in tens of thousands reaches the end of the buffer and
-suspends to refill; every other scan runs to completion synchronously. Yet the
-generated code pays for suspension on every call. In the native output of
-compiler master, each fast-scan call allocates 10 to 16 heap objects on entry
-before reading a character (`scan_object_next`: 16, `scan_member`: 14,
+The input is 3.1 million code units, 48 chunks, so about one scan in 4,200
+refills, and the source returns its chunks without suspending. So the table
+measures the overhead of async calls that complete synchronously, which is
+nearly every call in a streaming parser. The generated code pays for a
+possible suspension on every call. In the native output of compiler master,
+each ajson fast-scan call allocates 10 to 16 heap objects on entry, before
+reading a character (`scan_object_next`: 16, `scan_member`: 14,
 `scan_array_next`: 12, `scan_value`: 10). They are the `MutLocal` boxes of the
 DFA registers (state, accept state, match end, capture tags and tag savers),
 boxed because they are live across the `__refill` suspension point, plus the
 continuation closures of the CPS calling convention. Every async call on the
 way, such as `next_event`, allocates its own continuations as well.
 
-Other languages show the cost need not be there. A Rust `async fn` compiles to
-a state machine inlined into its caller's future and allocates nothing unless
-boxed; C# keeps an async method's state machine on the stack until its first
-real suspension; OCaml 5 effects and Go goroutines capture a continuation or
-stack only when they block. In all of these a call that does not suspend costs
-close to a sync call, about 1.0 to 1.2 times for Rust, OCaml and Go. JS
-`async` functions always go through a promise and a microtask, which is why
-JS parsers keep their hot loops synchronous.
+Other languages avoid most of this cost for calls that do not suspend, with
+different mechanisms. A Rust `async fn` compiles to a state machine that its
+caller's future embeds, so nothing is heap-allocated unless a future is boxed.
+A C# async method keeps its state machine in a stack struct and boxes it only
+when an `await` actually suspends; with `ValueTask` a synchronous completion
+allocates nothing. Kotlin, also CPS, allocates one continuation object per
+call rather than one box per local. In OCaml 5 and Go, code that may block is
+ordinary direct-style code; the cost is paid when an effect is performed or a
+goroutine blocks. A JS `async` function always allocates a promise, and each
+`await` resumes in a microtask. We have not benchmarked these languages here.
 
 Suggestions for the compiler, in the order we expect to pay off:
 
@@ -216,13 +224,14 @@ Suggestions for the compiler, in the order we expect to pay off:
 4. **Inline small async wrappers** (functions that only forward to one async
    call) so that they do not add a frame and continuations of their own.
 
-With 1 or 2, `AsyncLexbuf` should come within about 1.2 times of `Lexbuf`.
-On native the async cost is about 225 ns per scan ((63 - 18) ms / 200,000),
-and the benchmark document takes about 11 scans per record, 220,000 in all:
-roughly 50 of ajson's 105 ms (events only). Removing it would bring ajson to
-about 3 times `@json.parse` on an in-memory string; suggestions 3 and 4 cut
-into the async calls around the scans. The rest is per-event allocation (an
-event, a key and a value per member) that a pull parser cannot avoid.
+These are hypotheses; none of them is implemented or measured. A rough
+estimate of what 1 or 2 could save: on native, master, the async overhead in
+`cmd/asynctax` is about 225 ns per scan ((63 - 17.8) ms / 200,000). The
+benchmark document takes about 11 fast scans per record, 220,000 in all; if
+ajson's scans cost about the same, that is about 50 of its 105 ms (events
+only). The rest is scanning, decoding, number conversion, bookkeeping, the
+async calls around the scans and per-event allocation (an event, a key and a
+value per member).
 
 ## Tests
 

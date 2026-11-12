@@ -685,3 +685,30 @@ async test "a cancelled read leaves the parser interrupted" {
   }
   inspect(e, content="an earlier call was interrupted while reading the input")
 }
+
+///|
+async test "a cancelled read drops queued events" {
+  let parts = ["{\"a\" "]
+  let mut i = 0
+  let p = @ajson.Parser::new(
+    @lexbuf.AsyncLexbuf::from_fn(() => {
+      if i < parts.length() {
+        i += 1
+        return Some(parts[i - 1])
+      }
+      @async.sleep(10000)
+      None
+    }),
+    max_string_length=100,
+  )
+  debug_inspect(p.next_event(), content="Some(StartObject)")
+  let r = @async.with_timeout_opt(10, () => p.next_value())
+  assert_true(r is None)
+  // Without dropping the queued `Key("a")`, it would be returned here.
+  let e = try p.next_event() catch {
+    e => e.to_string()
+  } noraise {
+    _ => "an event"
+  }
+  inspect(e, content="an earlier call was interrupted while reading the input")
+}

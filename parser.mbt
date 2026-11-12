@@ -54,8 +54,9 @@ pub struct Parser {
 ///   default matches `@json.parse`.
 /// - `max_string_length`: if set, strings, property names and number literals
 ///   longer than this many UTF-16 code units are rejected with `TooLong`. The
-///   parser then scans a token in pieces of at most 64 characters, so it never
-///   buffers much more than one input chunk. This mode is slower.
+///   parser then scans a token in pieces of at most 64 characters, so its
+///   memory is bounded by the depth, about one input chunk and the token being
+///   decoded (at most the limit). This mode is slower.
 /// - `multiple_values`: if `true`, the input is a sequence of JSON values, such
 ///   as newline-delimited JSON or concatenated documents, separated by optional
 ///   whitespace; a top-level number, `true`, `false` or `null` must be followed
@@ -132,7 +133,13 @@ pub async fn Parser::next_event(self : Parser) -> Event? {
   }
   // A step interrupted by an error that is not caught below, such as a
   // cancellation, leaves the input in an unknown state.
-  errdefer (if self.error is None { self.error = Some(Interrupted) })
+  // Events it queued are dropped: they may start a group that will never be
+  // completed.
+  errdefer (if self.error is None {
+    self.error = Some(Interrupted)
+    self.pending.clear()
+    self.pending_head = 0
+  })
   while self.state != Finished {
     let failed = try {
       if self.max_string_length >= 0 {
