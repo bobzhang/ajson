@@ -40,8 +40,8 @@ priv enum State {
 }
 
 ///|
-/// An asynchronous pull parser for JSON text read from an
-/// `@lexbuf.AsyncLexbuf`.
+/// An asynchronous pull parser for JSON read from an `@lexbuf.AsyncLexbuf`
+/// (UTF-16 text) or an `@lexbuf.AsyncBytesLexbuf` (UTF-8 bytes).
 ///
 /// The parser keeps one entry per open container (`true` for an object), so
 /// its memory is proportional to the nesting depth, not to the document size.

@@ -172,8 +172,9 @@ numbers by `@json.parse`, so rounding and `repr` match exactly.
 
 For bytes input the same scanners are written with `reb"..."` regexes. The
 string character class matches exactly the well-formed UTF-8 sequences
-(no overlong forms, no encoded surrogates, nothing above U+10FFFF), so a
-scanned string is decoded without further checks.
+(no overlong forms, no encoded surrogates, nothing above U+10FFFF), so the
+scanner rejects malformed input where it occurs; the string is then decoded
+with `@utf8.decode`, which cannot fail on it.
 
 The regexes accept exactly the valid groups. When none matches, the parser
 rescans the group token by token with a slow scanner that finds the precise

@@ -764,6 +764,10 @@ async test "bytes positions count bytes" {
     content="unpaired surrogate escape at line 2, column 2 (offset 6)",
   )
   inspect(
+    first_error(b"[1\x00]"),
+    content="unexpected character \"\\u{00}\" at line 1, column 2 (offset 2)",
+  )
+  inspect(
     first_error(b"[\xe2\x82\xac]"),
     content="unexpected character \"\u{20ac}\" at line 1, column 1 (offset 1)",
   )

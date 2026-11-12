@@ -83,16 +83,16 @@ async fn[T] Parser::unexpected_b(self : Parser, pos : Position, c : Int32) -> T 
 /// Raises the error for the next character, or for the end of the input.
 async fn[T] Parser::fail_here_b(self : Parser) -> T {
   let pos = self.pos()
-  // A character, or 0 at the end of the input, or -1 if the next bytes are
+  // A character, or -2 at the end of the input, or -1 if the next bytes are
   // not well-formed UTF-8.
   let c = lexscan self.binary() with longest {
     reb"^(?:[\x00-\x7f]|[\xc2-\xdf][\x80-\xbf]|\xe0[\xa0-\xbf][\x80-\xbf]|[\xe1-\xec\xee\xef][\x80-\xbf]{2}|\xed[\x80-\x9f][\x80-\xbf]|\xf0[\x90-\xbf][\x80-\xbf]{2}|[\xf1-\xf3][\x80-\xbf]{3}|\xf4[\x80-\x8f][\x80-\xbf]{2})" as c =>
       decode_char(c)
-    reb"^$" => 0
+    reb"^$" => -2
     _ => -1
   }
   match c {
-    0 => raise UnexpectedEof(pos)
+    -2 => raise UnexpectedEof(pos)
     -1 => raise InvalidUtf8(pos)
     c => raise UnexpectedChar(pos, c.unsafe_to_char())
   }

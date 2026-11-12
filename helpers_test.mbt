@@ -124,6 +124,7 @@ async fn check_all_splits(input : String) -> Unit {
     )
   }
   let bytes = @utf8.encode(input)
+  check_bytes_splits(bytes)
   for i in 0..<=bytes.length() {
     agree(
       input,
@@ -228,13 +229,54 @@ fn agree_bytes(
 /// Checks UTF-8 `input` read as bytes, whole and in every two-way split, in
 /// both scanning modes.
 async fn check_bytes_splits(input : Bytes) -> Unit {
+  // For well-formed input the bytes parser must give the text parser's
+  // result. Errors must match exactly, positions included, when the input is
+  // ASCII (byte and UTF-16 offsets coincide), and in kind otherwise.
+  let text = Some(@utf8.decode(input)) catch { _ => None }
+  let ascii = input.iter().all(b => b < b'\x80')
+  let expected = match text {
+    Some(t) => Some(parse_parts([t]))
+    None => None
+  }
+  fn check(got : Result[Json, Error], what : String) -> Unit raise {
+    agree_bytes(input, got, what)
+    guard expected is Some(e) else { return }
+    if ascii {
+      if !same_result(e, got) {
+        fail("\{what}: \{input}: bytes and text results differ")
+      }
+    } else if (e, got) is (Err(x), Err(y)) && error_kind(x) != error_kind(y) {
+      fail("\{what}: \{input}: bytes error \{y}, text error \{x}")
+    }
+  }
+
   for i in 0..<=input.length() {
     let parts = [input[:i].to_owned(), input[i:].to_owned()]
-    agree_bytes(input, parse_utf8_parts(parts), "bytes split at \{i}")
-    agree_bytes(
-      input,
+    check(parse_utf8_parts(parts), "bytes split at \{i}")
+    check(
       parse_utf8_parts(parts, max_string_length=1 << 30),
       "limited bytes split at \{i}",
     )
+  }
+  // One byte per chunk: refills inside every multi-byte sequence.
+  let singles = input.iter().map(b => Bytes::from_array([b])).to_array()
+  check(parse_utf8_parts(singles), "one byte per chunk")
+  check(
+    parse_utf8_parts(singles, max_string_length=1 << 30),
+    "limited, one byte per chunk",
+  )
+}
+
+///|
+/// The variant of an error, without its position.
+fn error_kind(e : Error) -> String {
+  match e {
+    @ajson.UnexpectedChar(_, c) => "UnexpectedChar(\{c.to_int()})"
+    @ajson.UnexpectedEof(_) => "UnexpectedEof"
+    @ajson.UnpairedSurrogate(_) => "UnpairedSurrogate"
+    @ajson.DepthLimitExceeded(_, _) => "DepthLimitExceeded"
+    @ajson.TooLong(_, _) => "TooLong"
+    @ajson.InvalidUtf8(_) => "InvalidUtf8"
+    _ => e.to_string()
   }
 }
