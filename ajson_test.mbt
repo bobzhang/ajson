@@ -632,3 +632,56 @@ async test "errors from the source are kept" {
   assert_true(r2 is Err(SourceFailed))
   assert_eq(calls, 2)
 }
+
+///|
+async test "a missing separator is reported at the next value" {
+  debug_inspect(
+    values_both("1tru"),
+    content=(
+      #|Err(UnexpectedChar({ offset: 1, line: 1, column: 1 }, 't'))
+    ),
+  )
+  debug_inspect(
+    values_both("nul nul"),
+    content=(
+      #|Err(UnexpectedChar({ offset: 3, line: 1, column: 3 }, ' '))
+    ),
+  )
+}
+
+///|
+async test "skip_value" {
+  let p = @ajson.Parser::new(
+    @lexbuf.AsyncLexbuf::from_fn(
+      chunks(["[1, {\"a\": [2, {\"b\": 3}]}, [], \"s\"] [4]"]),
+    ),
+    multiple_values=true,
+  )
+  debug_inspect(p.next_event(), content="Some(StartArray)")
+  let mut n = 0
+  while p.skip_value() {
+    n += 1
+  }
+  assert_eq(n, 4)
+  assert_true(p.skip_value())
+  assert_true(!p.skip_value())
+  debug_inspect(p.next_event(), content="None")
+}
+
+///|
+async test "a cancelled read leaves the parser interrupted" {
+  let p = @ajson.Parser::new(
+    @lexbuf.AsyncLexbuf::from_fn(() => {
+      @async.sleep(10000)
+      Some("[]")
+    }),
+  )
+  let r = @async.with_timeout_opt(10, () => p.next_event())
+  assert_true(r is None)
+  let e = try p.next_event() catch {
+    e => e.to_string()
+  } noraise {
+    _ => "ok"
+  }
+  inspect(e, content="an earlier call was interrupted while reading the input")
+}

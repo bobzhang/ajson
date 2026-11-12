@@ -174,6 +174,9 @@ async fn Parser::slow_member(self : Parser, quote : Position) -> Unit {
 /// multi-value stream the end of the input is accepted instead.
 async fn Parser::slow_value(self : Parser, ws : Int32) -> Unit {
   let pos = self.pos()
+  // The length of a literal prefix, consumed only after the separator check.
+  let mut partial = 0
+  let mut first = 't'
   // A code for what starts here: the character for a container, a string or
   // a number; 't', 'f' or 'n' for a whole literal; 0 for the prefix of a
   // literal; -2 for the end of the input; -1 for anything else.
@@ -187,7 +190,8 @@ async fn Parser::slow_value(self : Parser, ws : Int32) -> Unit {
     re"^-" => '-'.to_int()
     re"^[0-9]" as d => d.to_int()
     re"^(?:t(?:ru?)?|f(?:a(?:ls?)?)?|n(?:ul?)?)" as p => {
-      self.advance(p.length())
+      partial = p.length()
+      first = p.unsafe_get(0).to_int().unsafe_to_char()
       0
     }
     re"^$" => -2
@@ -197,11 +201,23 @@ async fn Parser::slow_value(self : Parser, ws : Int32) -> Unit {
     self.state = Finished
     return
   }
-  if kind <= 0 {
-    self.fail_here()
+  if self.multiple_values && kind != -2 {
+    // A missing separator is reported before anything wrong in the value.
+    // For -1 the next character is reported anyway.
+    if kind >= 0 {
+      self.check_separator(
+        ws,
+        if kind == 0 {
+          first
+        } else {
+          kind.unsafe_to_char()
+        },
+      )
+    }
   }
-  if self.multiple_values {
-    self.check_separator(ws, kind.unsafe_to_char())
+  if kind <= 0 {
+    self.advance(partial)
+    self.fail_here()
   }
   match kind {
     '{' | '[' => {
