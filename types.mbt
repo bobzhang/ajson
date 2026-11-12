@@ -15,8 +15,9 @@ pub(all) enum Event {
 
 ///|
 /// A position in the input. `offset` counts UTF-16 code units from the start
-/// of the stream. `line` and `column` are 1-based; `column` counts UTF-16 code
-/// units from the start of the line.
+/// of the stream. `line` is 1-based and `column` is 0-based, as in
+/// `@json.Position`; `column` counts UTF-16 code units from the start of the
+/// line.
 #derive(Eq, Debug, ToJson)
 pub(all) struct Position {
   offset : Int32

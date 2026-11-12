@@ -109,7 +109,7 @@ pub fn Parser::position(self : Parser) -> Position {
   {
     offset: self.offset,
     line: self.line,
-    column: self.offset - self.line_start + 1,
+    column: self.offset - self.line_start,
   }
 }
 

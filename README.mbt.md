@@ -95,7 +95,8 @@ suberror ParseError {
 - Values are the ones `@json.parse` gives: duplicate keys keep the last value,
   and numbers carry `repr` exactly when `@json.parse` would.
 - `Position.offset` counts UTF-16 code units from the start of the stream;
-  `line` and `column` are 1-based, `column` in UTF-16 code units.
+  `line` is 1-based and `column` 0-based, as in `@json.Position`; `column`
+  counts UTF-16 code units.
 - After an error every later call raises it again; events scanned before the
   error are returned first. An error from the source (an I/O error, a
   cancellation) is kept the same way, so do not reuse the lexbuf afterwards.

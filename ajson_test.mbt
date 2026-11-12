@@ -267,61 +267,61 @@ async test "error positions" {
   debug_inspect(
     events_both("[1, 2,\n  tru]"),
     content=(
-      #|Err(UnexpectedChar({ offset: 12, line: 2, column: 6 }, ']'))
+      #|Err(UnexpectedChar({ offset: 12, line: 2, column: 5 }, ']'))
     ),
   )
   debug_inspect(
     events_both("{\"a\": 1,\n \"b\" 2}"),
     content=(
-      #|Err(UnexpectedChar({ offset: 14, line: 2, column: 6 }, '2'))
+      #|Err(UnexpectedChar({ offset: 14, line: 2, column: 5 }, '2'))
     ),
   )
   debug_inspect(
     events_both("[\"ab\\x\"]"),
     content=(
-      #|Err(UnexpectedChar({ offset: 5, line: 1, column: 6 }, 'x'))
+      #|Err(UnexpectedChar({ offset: 5, line: 1, column: 5 }, 'x'))
     ),
   )
   debug_inspect(
     events_both("[\"ab\\ud800\"]"),
     content=(
-      #|Err(UnpairedSurrogate({ offset: 4, line: 1, column: 5 }))
+      #|Err(UnpairedSurrogate({ offset: 4, line: 1, column: 4 }))
     ),
   )
   debug_inspect(
     events_both("[\n1,\n\"\\udc00\"]"),
     content=(
-      #|Err(UnpairedSurrogate({ offset: 6, line: 3, column: 2 }))
+      #|Err(UnpairedSurrogate({ offset: 6, line: 3, column: 1 }))
     ),
   )
   debug_inspect(
     events_both("[1, 2"),
     content=(
-      #|Err(UnexpectedEof({ offset: 5, line: 1, column: 6 }))
+      #|Err(UnexpectedEof({ offset: 5, line: 1, column: 5 }))
     ),
   )
   debug_inspect(
     events_both(""),
     content=(
-      #|Err(UnexpectedEof({ offset: 0, line: 1, column: 1 }))
+      #|Err(UnexpectedEof({ offset: 0, line: 1, column: 0 }))
     ),
   )
   debug_inspect(
     events_both("{} x"),
     content=(
-      #|Err(UnexpectedChar({ offset: 3, line: 1, column: 4 }, 'x'))
+      #|Err(UnexpectedChar({ offset: 3, line: 1, column: 3 }, 'x'))
     ),
   )
   debug_inspect(
     events_both("[1.]"),
     content=(
-      #|Err(UnexpectedChar({ offset: 2, line: 1, column: 3 }, '.'))
+      #|Err(UnexpectedChar({ offset: 2, line: 1, column: 2 }, '.'))
     ),
   )
   debug_inspect(
     events_both("[\"😀\", x]"),
     content=(
-      #|Err(UnexpectedChar({ offset: 7, line: 1, column: 8 }, 'x'))
+      #|Err(UnexpectedChar({ offset: 7, line: 1, column: 7 }, 'x'))
     ),
   )
 }
@@ -346,7 +346,7 @@ async test "events before an error are returned first" {
   inspect(
     e1,
     content=(
-      #|unexpected character "}" at line 1, column 10 (offset 9)
+      #|unexpected character "}" at line 1, column 9 (offset 9)
     ),
   )
   assert_eq(e1, e2)
@@ -365,13 +365,13 @@ async test "depth limit" {
   debug_inspect(
     parse_parts(["[[{}]]"], max_depth=2),
     content=(
-      #|Err(DepthLimitExceeded({ offset: 2, line: 1, column: 3 }, 2))
+      #|Err(DepthLimitExceeded({ offset: 2, line: 1, column: 2 }, 2))
     ),
   )
   debug_inspect(
     parse_parts(["[[[]]]"], max_depth=2),
     content=(
-      #|Err(DepthLimitExceeded({ offset: 2, line: 1, column: 3 }, 2))
+      #|Err(DepthLimitExceeded({ offset: 2, line: 1, column: 2 }, 2))
     ),
   )
   debug_inspect(parse_parts(["1"], max_depth=0), content="Ok(Number(1))")
@@ -464,19 +464,19 @@ async test "multiple values" {
   debug_inspect(
     values_both("1[2]"),
     content=(
-      #|Err(UnexpectedChar({ offset: 1, line: 1, column: 2 }, '['))
+      #|Err(UnexpectedChar({ offset: 1, line: 1, column: 1 }, '['))
     ),
   )
   debug_inspect(
     values_both("true\"a\""),
     content=(
-      #|Err(UnexpectedChar({ offset: 4, line: 1, column: 5 }, '"'))
+      #|Err(UnexpectedChar({ offset: 4, line: 1, column: 4 }, '"'))
     ),
   )
   debug_inspect(
     values_both("{}\n{]\n"),
     content=(
-      #|Err(UnexpectedChar({ offset: 4, line: 2, column: 2 }, ']'))
+      #|Err(UnexpectedChar({ offset: 4, line: 2, column: 1 }, ']'))
     ),
   )
 }
@@ -525,13 +525,13 @@ async test "string length limit" {
   debug_inspect(
     parse_parts(["[\"abcde\"]"], max_string_length=4),
     content=(
-      #|Err(TooLong({ offset: 1, line: 1, column: 2 }, 4))
+      #|Err(TooLong({ offset: 1, line: 1, column: 1 }, 4))
     ),
   )
   debug_inspect(
     parse_parts(["{\"abcde\": 1}"], max_string_length=4),
     content=(
-      #|Err(TooLong({ offset: 1, line: 1, column: 2 }, 4))
+      #|Err(TooLong({ offset: 1, line: 1, column: 1 }, 4))
     ),
   )
   // Escapes count as the characters they decode to.
@@ -544,7 +544,7 @@ async test "string length limit" {
   debug_inspect(
     parse_parts(["[12345]"], max_string_length=4),
     content=(
-      #|Err(TooLong({ offset: 1, line: 1, column: 2 }, 4))
+      #|Err(TooLong({ offset: 1, line: 1, column: 1 }, 4))
     ),
   )
   debug_inspect(
@@ -605,7 +605,7 @@ async test "next_member and next_value inside containers" {
   debug_inspect(p.next_member(), content="None")
   debug_inspect(p.next_value(), content="None")
   debug_inspect(p.next_event(), content="None")
-  debug_inspect(p.position(), content="{ offset: 42, line: 1, column: 43 }")
+  debug_inspect(p.position(), content="{ offset: 42, line: 1, column: 42 }")
 }
 
 ///|

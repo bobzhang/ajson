@@ -1,7 +1,7 @@
 ///|
 /// The position of `offset`, which must be on the current line.
 fn Parser::pos_at(self : Parser, offset : Int32) -> Position {
-  { offset, line: self.line, column: offset - self.line_start + 1, }
+  { offset, line: self.line, column: offset - self.line_start, }
 }
 
 ///|
