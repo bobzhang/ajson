@@ -27,9 +27,10 @@ priv enum State {
 /// Tokens are scanned whole by `lexscan`, so a single token, such as a long
 /// string, is buffered in full unless `max_string_length` is set.
 ///
-/// After an error, including an error raised by the input source or a
-/// cancellation, every later call raises the same error again; the events
-/// before the error are returned first.
+/// After a syntax error or an error raised by the input source, every later
+/// call raises the same error again. Events before a syntax error are returned
+/// first. When the source raises, the events of the token group being scanned
+/// may be lost. After a cancellation, later calls raise `Interrupted`.
 pub struct Parser {
   priv lexbuf : @lexbuf.AsyncLexbuf
   priv max_depth : Int32

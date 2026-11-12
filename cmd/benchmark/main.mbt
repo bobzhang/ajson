@@ -56,6 +56,13 @@ async fn main {
     println("\{name}: \{ms} ms, \{mb / (ms / 1000.0)} MB/s")
   }
 
+  // Check the results once, outside the timed runs.
+  for limit in [None, Some(1 << 20)] {
+    let p = @ajson.Parser::new(chunked(doc, 65536), max_string_length?=limit)
+    guard p.next_value() is Some(v) && v == expected else {
+      fail("ajson and @json.parse disagree")
+    }
+  }
   println("document: \{doc.length()} code units")
   report(
     "@json.parse (whole string)",
@@ -70,7 +77,8 @@ async fn main {
     "ajson next_value",
     median_ms(runs, () => {
       let p = @ajson.Parser::new(chunked(doc, 65536))
-      guard p.next_value() is Some(v) && v == expected else { panic() }
+      guard p.next_value() is Some(Array(a)) else { panic() }
+      sink += a.length()
     }),
   )
   report(
@@ -86,7 +94,8 @@ async fn main {
     "ajson next_value, max_string_length set",
     median_ms(runs, () => {
       let p = @ajson.Parser::new(chunked(doc, 65536), max_string_length=1 << 20)
-      guard p.next_value() is Some(v) && v == expected else { panic() }
+      guard p.next_value() is Some(Array(a)) else { panic() }
+      sink += a.length()
     }),
   )
   ignore(sink)
