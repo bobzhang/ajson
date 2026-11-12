@@ -721,16 +721,66 @@ async test "a cancelled read drops queued events" {
 }
 
 ///|
-async test "malformed UTF-8 is rejected in every split" {
-  let cases : Array[Bytes] = [
-    b"[\"\xff\"]", b"[\"\xc3\"]", b"[\"\xc3\x28\"]", b"[\"\xc0\xaf\"]", b"[\"\xe0\x80\xaf\"]",
-    b"[\"\xed\xa0\x80\"]", b"[\"\xf4\x90\x80\x80\"]", b"[\"\xf0\x9f\x98\"]", b"[\"\x80\"]",
-    b"{\"\xfe\": 1}", b"[\xc3\xa9]", b"\xef\xbb\xbf[]", b"[1, \xff]", b"\"\xe2\x82",
-    // Well-formed: 2, 3 and 4 byte sequences, at the edges of their ranges.
-     b"[\"\xc2\x80\xdf\xbf\"]", b"[\"\xe0\xa0\x80\xef\xbf\xbf\xed\x9f\xbf\xee\x80\x80\"]",
+/// The result of parsing bytes `parts` as one document: "ok" or the error.
+async fn bytes_outcome(
+  parts : Array[Bytes],
+  max_string_length? : Int32,
+) -> String {
+  match parse_utf8_parts(parts, max_string_length?) {
+    Ok(_) => "ok"
+    Err(e) => e.to_string()
+  }
+}
+
+///|
+async test "malformed UTF-8 is rejected at its first byte in every split" {
+  let cases : Array[(Bytes, String)] = [
+    (b"[\"\xff\"]", "malformed UTF-8 at line 1, column 2 (offset 2)"),
+    (b"[\"\xc3\"]", "malformed UTF-8 at line 1, column 2 (offset 2)"),
+    (b"[\"\xc3\x28\"]", "malformed UTF-8 at line 1, column 2 (offset 2)"),
+    (b"[\"\xc0\xaf\"]", "malformed UTF-8 at line 1, column 2 (offset 2)"),
+    (b"[\"\xe0\x80\xaf\"]", "malformed UTF-8 at line 1, column 2 (offset 2)"),
+    (b"[\"\xed\xa0\x80\"]", "malformed UTF-8 at line 1, column 2 (offset 2)"),
+    (
+      b"[\"\xf4\x90\x80\x80\"]", "malformed UTF-8 at line 1, column 2 (offset 2)",
+    ),
+    (b"[\"\xf0\x9f\x98\"]", "malformed UTF-8 at line 1, column 2 (offset 2)"),
+    (b"[\"\x80\"]", "malformed UTF-8 at line 1, column 2 (offset 2)"),
+    (b"[\"ab\xc3\xa9\xff\"]", "malformed UTF-8 at line 1, column 6 (offset 6)"),
+    (b"{\"\xfe\": 1}", "malformed UTF-8 at line 1, column 2 (offset 2)"),
+    (b"[1, \xff]", "malformed UTF-8 at line 1, column 4 (offset 4)"),
+    (b"\"\xe2\x82", "malformed UTF-8 at line 1, column 1 (offset 1)"),
+    (
+      b"[\xc3\xa9]", "unexpected character \"\u{e9}\" at line 1, column 1 (offset 1)",
+    ),
+    (
+      b"\xef\xbb\xbf[]", "unexpected character \"\u{feff}\" at line 1, column 0 (offset 0)",
+    ),
+  ]
+  for case in cases {
+    let (input, expected) = case
+    let splits = [[input]]
+    for i in 0..<=input.length() {
+      splits.push([input[:i].to_owned(), input[i:].to_owned()])
+    }
+    splits.push(input.iter().map(b => Bytes::from_array([b])).to_array())
+    for parts in splits {
+      for limit in [None, Some(1 << 30)] {
+        let got = bytes_outcome(parts, max_string_length?=limit)
+        if got != expected {
+          fail(
+            "\{input} split as \{@debug.Repr(parts)}, limit \{@debug.Repr(limit)}: got \{got}",
+          )
+        }
+      }
+    }
+  }
+  // Well-formed: 2, 3 and 4 byte sequences, at the edges of their ranges.
+  let valid : Array[Bytes] = [
+    b"[\"\xc2\x80\xdf\xbf\"]", b"[\"\xe0\xa0\x80\xef\xbf\xbf\xed\x9f\xbf\xee\x80\x80\"]",
     b"[\"\xf0\x90\x80\x80\xf4\x8f\xbf\xbf\"]", b"{\"\xc3\xa9\": \"\xe2\x82\xac\"}",
   ]
-  for input in cases {
+  for input in valid {
     check_bytes_splits(input)
   }
 }
