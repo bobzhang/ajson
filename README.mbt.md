@@ -216,11 +216,12 @@ Suggestions for the compiler, in the order we expect to pay off:
    state crosses from one to the other, so the hot path is exactly the sync
    one, at the cost of code size.
 3. **Direct return for async calls that complete synchronously.** Let an async
-   call return its result directly, or a "suspended" marker, and allocate the
-   continuation only when the callee really suspends, as C# does with
-   `ValueTask` and Kotlin with its suspension marker. This helps every layer of
-   async functions, not only `lexscan`: ajson makes two or three async calls
-   per event.
+   call return its result directly, or a "suspended" marker, as Kotlin's
+   `COROUTINE_SUSPENDED` convention does, and allocate the callee's frame and
+   the caller's continuation only when the callee really suspends, as C# does
+   (with `ValueTask`, a synchronous completion allocates nothing). This helps
+   every layer of async functions, not only `lexscan`: ajson makes two or three
+   async calls per event.
 4. **Inline small async wrappers** (functions that only forward to one async
    call) so that they do not add a frame and continuations of their own.
 

@@ -57,7 +57,10 @@ async fn parse_parts(
 ///|
 /// Parses one document from UTF-8 `parts` through `MemoryReader` and
 /// `Utf8Reader`.
-async fn parse_bytes(parts : Array[Bytes]) -> Result[Json, Error] {
+async fn parse_bytes(
+  parts : Array[Bytes],
+  max_string_length? : Int32,
+) -> Result[Json, Error] {
   let bytes = @io.MemoryReader(w => {
     for part in parts {
       w.write(part)
@@ -65,7 +68,7 @@ async fn parse_bytes(parts : Array[Bytes]) -> Result[Json, Error] {
   })
   // Stops the writer if the parser stops reading early.
   defer bytes.close()
-  let p = @ajson.Parser::from_reader(@io.Utf8Reader(bytes))
+  let p = @ajson.Parser::from_reader(@io.Utf8Reader(bytes), max_string_length?)
   try {
     guard p.next_value() is Some(v) else { fail("no value") }
     guard p.next_value() is None else { fail("more than one value") }
@@ -126,6 +129,14 @@ async fn check_all_splits(input : String) -> Unit {
       input,
       parse_bytes([bytes[:i].to_owned(), bytes[i:].to_owned()]),
       "byte split at \{i}",
+    )
+    agree(
+      input,
+      parse_bytes(
+        [bytes[:i].to_owned(), bytes[i:].to_owned()],
+        max_string_length=1 << 30,
+      ),
+      "limited byte split at \{i}",
     )
   }
 }
