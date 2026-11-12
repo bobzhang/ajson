@@ -1,0 +1,59 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "bobzhang/ajson"
+
+import {
+  "moonbitlang/core/async/io",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+  "moonbitlang/core/lexbuf",
+}
+
+// Values
+
+// Errors
+#derive(Eq, @debug.Debug, @json.ToJson)
+pub(all) suberror ParseError {
+  UnexpectedChar(Position, Char)
+  UnexpectedEof(Position)
+  UnpairedSurrogate(Position)
+  DepthLimitExceeded(Position, Int32)
+  TooLong(Position, Int32)
+  Interrupted
+}
+pub impl Show for ParseError
+
+// Types and methods
+#derive(Eq, @debug.Debug, @json.ToJson)
+pub(all) enum Event {
+  StartObject
+  EndObject
+  StartArray
+  EndArray
+  Key(String)
+  Value(@json.Json)
+}
+
+pub struct Parser {
+  // private fields
+}
+pub fn Parser::depth(Self) -> Int32
+pub async fn Parser::each_value(Self, async (@json.Json) -> Unit) -> Unit
+pub fn[R : @io.TextReader] Parser::from_reader(R, max_depth? : Int32, max_string_length? : Int32, multiple_values? : Bool) -> Self
+pub fn Parser::new(@lexbuf.AsyncLexbuf, max_depth? : Int32, max_string_length? : Int32, multiple_values? : Bool) -> Self
+pub async fn Parser::next_event(Self) -> Event?
+pub async fn Parser::next_member(Self) -> (String, @json.Json)?
+pub async fn Parser::next_value(Self) -> @json.Json?
+pub fn Parser::position(Self) -> Position
+pub async fn Parser::skip_value(Self) -> Bool
+
+#derive(Eq, @debug.Debug, @json.ToJson)
+pub(all) struct Position {
+  offset : Int32
+  line : Int32
+  column : Int32
+}
+pub impl Show for Position
+
+// Type aliases
+
+// Traits

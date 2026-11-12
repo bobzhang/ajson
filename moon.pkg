@@ -1,0 +1,15 @@
+import {
+  "moonbitlang/core/lexbuf",
+  "moonbitlang/core/json",
+  "moonbitlang/core/async/io",
+}
+
+import {
+  "moonbitlang/core/async",
+  "moonbitlang/core/cmp",
+  "moonbitlang/core/encoding/utf8",
+} for "test"
+
+options(
+  "allow-experimental-packages": true,
+)
