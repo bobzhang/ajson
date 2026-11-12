@@ -1,0 +1,13 @@
+import {
+  "bobzhang/ajson",
+  "moonbitlang/core/async",
+  "moonbitlang/core/bench",
+  "moonbitlang/core/json",
+  "moonbitlang/core/lexbuf",
+}
+
+pkgtype(kind: "executable")
+
+options(
+  "allow-experimental-packages": true,
+)
