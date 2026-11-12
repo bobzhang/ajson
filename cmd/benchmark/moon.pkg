@@ -4,6 +4,9 @@ import {
   "moonbitlang/core/bench",
   "moonbitlang/core/json",
   "moonbitlang/core/lexbuf",
+  "moonbitlang/core/async/io",
+  "moonbitlang/core/cmp",
+  "moonbitlang/core/encoding/utf8",
 }
 
 pkgtype(kind: "executable")

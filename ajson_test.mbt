@@ -209,6 +209,13 @@ async test "exhaustive small inputs" {
       }
       agree(input, parse_parts([input]), "whole")
       agree(input, parse_parts([input], max_string_length=1 << 30), "limited")
+      let bytes = @utf8.encode(input)
+      agree(input, parse_utf8_parts([bytes]), "bytes")
+      agree(
+        input,
+        parse_utf8_parts([bytes], max_string_length=1 << 30),
+        "limited bytes",
+      )
       count += 1
     }
   }
@@ -711,4 +718,53 @@ async test "a cancelled read drops queued events" {
     _ => "an event"
   }
   inspect(e, content="an earlier call was interrupted while reading the input")
+}
+
+///|
+async test "malformed UTF-8 is rejected in every split" {
+  let cases : Array[Bytes] = [
+    b"[\"\xff\"]", b"[\"\xc3\"]", b"[\"\xc3\x28\"]", b"[\"\xc0\xaf\"]", b"[\"\xe0\x80\xaf\"]",
+    b"[\"\xed\xa0\x80\"]", b"[\"\xf4\x90\x80\x80\"]", b"[\"\xf0\x9f\x98\"]", b"[\"\x80\"]",
+    b"{\"\xfe\": 1}", b"[\xc3\xa9]", b"\xef\xbb\xbf[]", b"[1, \xff]", b"\"\xe2\x82",
+    // Well-formed: 2, 3 and 4 byte sequences, at the edges of their ranges.
+     b"[\"\xc2\x80\xdf\xbf\"]", b"[\"\xe0\xa0\x80\xef\xbf\xbf\xed\x9f\xbf\xee\x80\x80\"]",
+    b"[\"\xf0\x90\x80\x80\xf4\x8f\xbf\xbf\"]", b"{\"\xc3\xa9\": \"\xe2\x82\xac\"}",
+  ]
+  for input in cases {
+    check_bytes_splits(input)
+  }
+}
+
+///|
+async test "bytes positions count bytes" {
+  async fn first_error(input : Bytes) -> String {
+    let p = @ajson.Parser::new_bytes(
+      @lexbuf.AsyncBytesLexbuf::from_fn(byte_chunks([input])),
+    )
+    try {
+      while p.next_event() is Some(_) {
+
+      }
+      "ok"
+    } catch {
+      e => e.to_string()
+    }
+  }
+
+  inspect(
+    first_error(b"[\"\xc3\xa9\", x]"),
+    content="unexpected character \"x\" at line 1, column 7 (offset 7)",
+  )
+  inspect(
+    first_error(b"[\"\xc3\xa9\xff\"]"),
+    content="malformed UTF-8 at line 1, column 4 (offset 4)",
+  )
+  inspect(
+    first_error(b"[1,\n \"\\ud800\"]"),
+    content="unpaired surrogate escape at line 2, column 2 (offset 6)",
+  )
+  inspect(
+    first_error(b"[\xe2\x82\xac]"),
+    content="unexpected character \"\u{20ac}\" at line 1, column 1 (offset 1)",
+  )
 }

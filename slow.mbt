@@ -86,7 +86,7 @@ async fn[T] Parser::unexpected(self : Parser, pos : Position, c : Int32) -> T {
 /// Raises the error for the next character, or for the end of the input.
 async fn[T] Parser::fail_here(self : Parser) -> T {
   let pos = self.pos()
-  let c = lexscan self.lexbuf with longest {
+  let c = lexscan self.text() with longest {
     re"^[\u{0}-\u{10FFFF}]" as c => Some(c)
     _ => None
   }
@@ -101,7 +101,7 @@ async fn[T] Parser::fail_here(self : Parser) -> T {
 async fn Parser::slow_ws(self : Parser) -> Int32 {
   let start = self.offset
   for ;; {
-    let more = lexscan self.lexbuf with longest {
+    let more = lexscan self.text() with longest {
       re"^[ \t\r]{1,64}" as w => {
         self.advance(w.length())
         true
@@ -121,7 +121,7 @@ async fn Parser::slow_ws(self : Parser) -> Int32 {
 
 ///|
 async fn Parser::slow_eof(self : Parser) -> Bool {
-  lexscan self.lexbuf with longest {
+  lexscan self.text() with longest {
     re"^$" => true
     _ => false
   }
@@ -129,7 +129,7 @@ async fn Parser::slow_eof(self : Parser) -> Bool {
 
 ///|
 async fn Parser::slow_close_bracket(self : Parser) -> Bool {
-  lexscan self.lexbuf with longest {
+  lexscan self.text() with longest {
     re"^\]" => {
       self.advance(1)
       true
@@ -141,7 +141,7 @@ async fn Parser::slow_close_bracket(self : Parser) -> Bool {
 ///|
 /// Consumes one of `,:]}"` and returns it, or returns -1 and consumes nothing.
 async fn Parser::slow_punct(self : Parser) -> Int32 {
-  let c = lexscan self.lexbuf with longest {
+  let c = lexscan self.text() with longest {
     re"^," => ','.to_int()
     re"^:" => ':'.to_int()
     re"^\]" => ']'.to_int()
@@ -180,7 +180,7 @@ async fn Parser::slow_value(self : Parser, ws : Int32) -> Unit {
   // A code for what starts here: the character for a container, a string or
   // a number; 't', 'f' or 'n' for a whole literal; 0 for the prefix of a
   // literal; -2 for the end of the input; -1 for anything else.
-  let kind = lexscan self.lexbuf with longest {
+  let kind = lexscan self.text() with longest {
     re"^[{]" => '{'.to_int()
     re"^\[" => '['.to_int()
     re"^\"" => '"'.to_int()
@@ -270,7 +270,7 @@ async fn Parser::slow_string(self : Parser, quote : Position) -> String {
     let pos = self.pos()
     // The number of code units added, or -1 at the closing quote, -2 for an
     // error at the current position, -3 for an unpaired surrogate.
-    let n = lexscan self.lexbuf with longest {
+    let n = lexscan self.text() with longest {
       re"^[^\"\\\u{0}-\u{1f}]{1,64}" as s => {
         sb.write_view(s)
         self.advance(s.length())
@@ -281,7 +281,7 @@ async fn Parser::slow_string(self : Parser, quote : Position) -> String {
         -1
       }
       re"^\\[\"\\/bfnrt]" as e => {
-        sb.write_char(unescape(e.unsafe_get(1)))
+        sb.write_char(unescape(e.unsafe_get(1).to_int()))
         self.advance(2)
         1
       }
@@ -360,7 +360,7 @@ async fn Parser::slow_number(
 ///|
 /// Consumes one digit and returns it, or returns -1 and consumes nothing.
 async fn Parser::slow_digit(self : Parser) -> Int32 {
-  lexscan self.lexbuf with longest {
+  lexscan self.text() with longest {
     re"^[0-9]" as d => {
       self.advance(1)
       d.to_int()
@@ -380,7 +380,7 @@ async fn Parser::slow_digits(
 ) -> Int32 {
   let mut len = len
   for ;; {
-    let more = lexscan self.lexbuf with longest {
+    let more = lexscan self.text() with longest {
       re"^[0-9]{1,64}" as d => {
         sb.write_view(d)
         self.advance(d.length())
@@ -401,7 +401,7 @@ async fn Parser::slow_digits(
 /// Consumes `.` and one digit into `sb`; returns how many code units were
 /// consumed.
 async fn Parser::slow_fraction(self : Parser, sb : StringBuilder) -> Int32 {
-  lexscan self.lexbuf with longest {
+  lexscan self.text() with longest {
     re"^\.[0-9]" as f => {
       sb.write_view(f)
       self.advance(2)
@@ -415,7 +415,7 @@ async fn Parser::slow_fraction(self : Parser, sb : StringBuilder) -> Int32 {
 /// Consumes `e` or `E`, an optional sign and one digit into `sb`; returns how
 /// many code units were consumed.
 async fn Parser::slow_exponent(self : Parser, sb : StringBuilder) -> Int32 {
-  lexscan self.lexbuf with longest {
+  lexscan self.text() with longest {
     re"^[eE][+\-]?[0-9]" as e => {
       sb.write_view(e)
       self.advance(e.length())

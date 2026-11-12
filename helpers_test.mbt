@@ -173,3 +173,68 @@ fn[T : Eq] same_result(a : Result[T, Error], b : Result[T, Error]) -> Bool {
     _ => false
   }
 }
+
+///|
+/// A bytes source returning `parts` one by one.
+fn byte_chunks(parts : Array[Bytes]) -> async () -> Bytes? {
+  let mut i = 0
+  () => {
+    if i < parts.length() {
+      i += 1
+      Some(parts[i - 1])
+    } else {
+      None
+    }
+  }
+}
+
+///|
+/// Parses exactly one document from UTF-8 `parts` read as bytes.
+async fn parse_utf8_parts(
+  parts : Array[Bytes],
+  max_string_length? : Int32,
+) -> Result[Json, Error] {
+  let p = @ajson.Parser::new_bytes(
+    @lexbuf.AsyncBytesLexbuf::from_fn(byte_chunks(parts)),
+    max_string_length?,
+  )
+  try {
+    guard p.next_value() is Some(v) else { fail("no value") }
+    guard p.next_value() is None else { fail("more than one value") }
+    Ok(v)
+  } catch {
+    e => Err(e)
+  }
+}
+
+///|
+/// `agree` for bytes input: the reference is strict UTF-8 decoding followed
+/// by `@json.parse`.
+fn agree_bytes(
+  input : Bytes,
+  got : Result[Json, Error],
+  what : String,
+) -> Unit raise {
+  match (Ok(@utf8.decode(input)) catch { e => Err(e) }) {
+    Ok(text) => agree(text, got, what)
+    Err(_) =>
+      if got is Ok(v) {
+        fail("\{what}: \{input}: malformed UTF-8 accepted as \{v.stringify()}")
+      }
+  }
+}
+
+///|
+/// Checks UTF-8 `input` read as bytes, whole and in every two-way split, in
+/// both scanning modes.
+async fn check_bytes_splits(input : Bytes) -> Unit {
+  for i in 0..<=input.length() {
+    let parts = [input[:i].to_owned(), input[i:].to_owned()]
+    agree_bytes(input, parse_utf8_parts(parts), "bytes split at \{i}")
+    agree_bytes(
+      input,
+      parse_utf8_parts(parts, max_string_length=1 << 30),
+      "limited bytes split at \{i}",
+    )
+  }
+}

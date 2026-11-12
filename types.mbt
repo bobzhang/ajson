@@ -14,10 +14,10 @@ pub(all) enum Event {
 }
 
 ///|
-/// A position in the input. `offset` counts UTF-16 code units from the start
-/// of the stream. `line` is 1-based and `column` is 0-based, as in
-/// `@json.Position`; `column` counts UTF-16 code units from the start of the
-/// line.
+/// A position in the input. `offset` counts UTF-16 code units of text input,
+/// or bytes of bytes input, from the start of the stream. `line` is 1-based and `column` is 0-based, as in
+/// `@json.Position`; `column` counts code units (bytes for bytes input) from
+/// the start of the line.
 #derive(Eq, Debug, ToJson)
 pub(all) struct Position {
   offset : Int32
@@ -49,6 +49,8 @@ pub(all) suberror ParseError {
   /// A string, property name or number starting at the position is longer
   /// than the length limit.
   TooLong(Position, Int32)
+  /// Bytes input that is not well-formed UTF-8 at the position.
+  InvalidUtf8(Position)
   /// An earlier call was interrupted, for example cancelled, while reading
   /// the input; the parser cannot continue.
   Interrupted
@@ -63,6 +65,7 @@ pub impl Show for ParseError with fn output(self, logger) {
     UnpairedSurrogate(pos) => "unpaired surrogate escape at \{pos}"
     DepthLimitExceeded(pos, limit) => "nesting deeper than \{limit} at \{pos}"
     TooLong(pos, limit) => "token longer than \{limit} code units at \{pos}"
+    InvalidUtf8(pos) => "malformed UTF-8 at \{pos}"
     Interrupted => "an earlier call was interrupted while reading the input"
   }
   logger.write_string(message)

@@ -23,7 +23,7 @@
 ///|
 /// State `Value` or `ArrayFirst`: whitespace, then a value.
 async fn Parser::scan_value(self : Parser) -> Unit {
-  let matched = lexscan self.lexbuf with longest {
+  let matched = lexscan self.text() with longest {
     (re"^[ \t\r\n]*" as w) +
     (
       re"\"(?:[^\"\\\u{0}-\u{1f}]|\\[\"\\/bfnrt]|\\u[0-9a-fA-F]{4})*\"|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+\-]?[0-9]+)?|true|false|null|[{][ \t\r\n]*[}]|\[[ \t\r\n]*\]|[{]|\[" as v
@@ -42,7 +42,7 @@ async fn Parser::scan_value(self : Parser) -> Unit {
 ///|
 /// State `ArrayNext`: `]`, or `,` and the next element.
 async fn Parser::scan_array_next(self : Parser) -> Unit {
-  let matched = lexscan self.lexbuf with longest {
+  let matched = lexscan self.text() with longest {
     re"^[ \t\r\n]*\]" as w => {
       self.advance_text(w)
       self.close()
@@ -67,7 +67,7 @@ async fn Parser::scan_array_next(self : Parser) -> Unit {
 /// State `ObjectFirst`: the first member. An empty object never gets here
 /// from the fast scanner, since `{}` is scanned as one value.
 async fn Parser::scan_member(self : Parser) -> Unit {
-  let matched = lexscan self.lexbuf with longest {
+  let matched = lexscan self.text() with longest {
     (re"^[ \t\r\n]*\"" as h1) +
     (re"(?:[^\"\\\u{0}-\u{1f}]|\\[\"\\/bfnrt]|\\u[0-9a-fA-F]{4})*" as k) +
     (re"\"[ \t\r\n]*:[ \t\r\n]*" as h2) +
@@ -87,7 +87,7 @@ async fn Parser::scan_member(self : Parser) -> Unit {
 ///|
 /// State `ObjectNext`: `}`, or `,` and the next member.
 async fn Parser::scan_object_next(self : Parser) -> Unit {
-  let matched = lexscan self.lexbuf with longest {
+  let matched = lexscan self.text() with longest {
     re"^[ \t\r\n]*[}]" as w => {
       self.advance_text(w)
       self.close()

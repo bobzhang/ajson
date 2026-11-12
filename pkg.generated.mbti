@@ -18,6 +18,7 @@ pub(all) suberror ParseError {
   UnpairedSurrogate(Position)
   DepthLimitExceeded(Position, Int32)
   TooLong(Position, Int32)
+  InvalidUtf8(Position)
   Interrupted
 }
 pub impl Show for ParseError
@@ -38,8 +39,10 @@ pub struct Parser {
 }
 pub fn Parser::depth(Self) -> Int32
 pub async fn Parser::each_value(Self, async (@json.Json) -> Unit) -> Unit
+pub fn[R : @io.BinaryReader] Parser::from_binary_reader(R, max_depth? : Int32, max_string_length? : Int32, multiple_values? : Bool) -> Self
 pub fn[R : @io.TextReader] Parser::from_reader(R, max_depth? : Int32, max_string_length? : Int32, multiple_values? : Bool) -> Self
 pub fn Parser::new(@lexbuf.AsyncLexbuf, max_depth? : Int32, max_string_length? : Int32, multiple_values? : Bool) -> Self
+pub fn Parser::new_bytes(@lexbuf.AsyncBytesLexbuf, max_depth? : Int32, max_string_length? : Int32, multiple_values? : Bool) -> Self
 pub async fn Parser::next_event(Self) -> Event?
 pub async fn Parser::next_member(Self) -> (String, @json.Json)?
 pub async fn Parser::next_value(Self) -> @json.Json?

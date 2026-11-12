@@ -1,4 +1,25 @@
 ///|
+/// The input: UTF-16 text or UTF-8 bytes.
+priv enum Input {
+  Text(@lexbuf.AsyncLexbuf)
+  Binary(@lexbuf.AsyncBytesLexbuf)
+}
+
+///|
+fn Parser::text(self : Parser) -> @lexbuf.AsyncLexbuf {
+  guard self.input is Text(lexbuf) else { abort("unreachable: not text input") }
+  lexbuf
+}
+
+///|
+fn Parser::binary(self : Parser) -> @lexbuf.AsyncBytesLexbuf {
+  guard self.input is Binary(lexbuf) else {
+    abort("unreachable: not bytes input")
+  }
+  lexbuf
+}
+
+///|
 /// What the parser expects next.
 #derive(Eq)
 priv enum State {
@@ -32,7 +53,7 @@ priv enum State {
 /// first. When the source raises, the events of the token group being scanned
 /// may be lost. After a cancellation, later calls raise `Interrupted`.
 pub struct Parser {
-  priv lexbuf : @lexbuf.AsyncLexbuf
+  priv input : Input
   priv max_depth : Int32
   priv max_string_length : Int32
   priv multiple_values : Bool
@@ -68,7 +89,7 @@ pub fn Parser::new(
   multiple_values~ : Bool = false,
 ) -> Parser {
   {
-    lexbuf,
+    input: Text(lexbuf),
     max_depth,
     max_string_length: match max_string_length {
       Some(n) => if n < 0 { 0 } else { n }
@@ -85,6 +106,50 @@ pub fn Parser::new(
     need_separator: false,
     error: None,
   }
+}
+
+///|
+/// Creates a parser reading UTF-8 bytes from `lexbuf`. Positions count bytes.
+/// Malformed UTF-8 is rejected with `InvalidUtf8`. The options are those of
+/// `Parser::new`; `max_string_length` still counts UTF-16 code units of the
+/// decoded strings.
+pub fn Parser::new_bytes(
+  lexbuf : @lexbuf.AsyncBytesLexbuf,
+  max_depth~ : Int32 = 1024,
+  max_string_length? : Int32,
+  multiple_values~ : Bool = false,
+) -> Parser {
+  {
+    ..Parser::new(
+      empty_text(),
+      max_depth~,
+      max_string_length?,
+      multiple_values~,
+    ),
+    input: Binary(lexbuf),
+  }
+}
+
+///|
+fn empty_text() -> @lexbuf.AsyncLexbuf {
+  @lexbuf.AsyncLexbuf::from_fn(() => None)
+}
+
+///|
+/// Creates a parser reading UTF-8 bytes from `reader`, for example
+/// `@stdio.stdin`. The options are those of `Parser::new_bytes`.
+pub fn[R : @io.BinaryReader] Parser::from_binary_reader(
+  reader : R,
+  max_depth~ : Int32 = 1024,
+  max_string_length? : Int32,
+  multiple_values~ : Bool = false,
+) -> Parser {
+  Parser::new_bytes(
+    @lexbuf.AsyncBytesLexbuf::from_fn(() => reader.read()),
+    max_depth~,
+    max_string_length?,
+    multiple_values~,
+  )
 }
 
 ///|
@@ -142,16 +207,31 @@ pub async fn Parser::next_event(self : Parser) -> Event? {
   })
   while self.state != Finished {
     let failed = try {
-      if self.max_string_length >= 0 {
-        self.slow_step()
-      } else {
-        match self.state {
-          Value | ArrayFirst => self.scan_value()
-          ArrayNext => self.scan_array_next()
-          ObjectFirst => self.scan_member()
-          ObjectNext => self.scan_object_next()
-          TopEnd | Finished => self.slow_step()
-        }
+      match self.input {
+        Text(_) =>
+          if self.max_string_length >= 0 {
+            self.slow_step()
+          } else {
+            match self.state {
+              Value | ArrayFirst => self.scan_value()
+              ArrayNext => self.scan_array_next()
+              ObjectFirst => self.scan_member()
+              ObjectNext => self.scan_object_next()
+              TopEnd | Finished => self.slow_step()
+            }
+          }
+        Binary(_) =>
+          if self.max_string_length >= 0 {
+            self.slow_step_b()
+          } else {
+            match self.state {
+              Value | ArrayFirst => self.scan_value_b()
+              ArrayNext => self.scan_array_next_b()
+              ObjectFirst => self.scan_member_b()
+              ObjectNext => self.scan_object_next_b()
+              TopEnd | Finished => self.slow_step_b()
+            }
+          }
       }
       None
     } catch {
@@ -339,6 +419,14 @@ fn Parser::advance_text(self : Parser, text : StringView) -> Unit {
     }
   }
   self.offset = base + text.length()
+}
+
+///|
+/// Advances over a line break.
+fn Parser::newline(self : Parser) -> Unit {
+  self.offset += 1
+  self.line += 1
+  self.line_start = self.offset
 }
 
 ///|

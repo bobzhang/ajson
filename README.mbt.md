@@ -20,6 +20,13 @@ An asynchronous streaming JSON parser for MoonBit, built on `lexscan` over
 Supported targets: native, js and wasm (those that core's async runtime
 supports).
 
+Input is UTF-16 text (`@lexbuf.AsyncLexbuf`) or UTF-8 bytes
+(`@lexbuf.AsyncBytesLexbuf`, scanned with `reb"..."` regexes that also
+validate the UTF-8). Bytes input needs a toolchain with bytes `lexscan`
+(compiler master since 2026-11-08) and a core with `AsyncBytesLexbuf`; the
+released moonc v0.10.20 (2026-11-05) has neither, so the 0.1.0 release on
+mooncakes.io is text only.
+
 ## Example
 
 ```mbt check
@@ -49,6 +56,32 @@ async test "read an array of objects in chunks" {
 }
 ```
 
+Bytes input (needs a toolchain with bytes `lexscan`, see above):
+
+```mbt check
+///|
+async test "read UTF-8 bytes in chunks" {
+  let parts : Array[Bytes] = [b"{\"caf\xc3", b"\xa9\": [1, 2]}"]
+  let mut i = 0
+  let parser = @ajson.Parser::new_bytes(
+    @lexbuf.AsyncBytesLexbuf::from_fn(() => {
+      if i < parts.length() {
+        i += 1
+        Some(parts[i - 1])
+      } else {
+        None
+      }
+    }),
+  )
+  debug_inspect(
+    parser.next_value(),
+    content=(
+      #|Some(Object({ "café": Array([Number(1), Number(2)]) }))
+    ),
+  )
+}
+```
+
 Reading standard input (native, wasm):
 
 ```moonbit nocheck
@@ -71,6 +104,8 @@ moon build --target native --release
 Parser::new(lexbuf : @lexbuf.AsyncLexbuf, max_depth? : Int = 1024,
             max_string_length? : Int, multiple_values? : Bool = false) -> Parser
 Parser::from_reader[R : @io.TextReader](reader : R, ...same options) -> Parser
+Parser::new_bytes(lexbuf : @lexbuf.AsyncBytesLexbuf, ...same options) -> Parser
+Parser::from_binary_reader[R : @io.BinaryReader](reader : R, ...same options) -> Parser
 
 async Parser::next_event(self) -> Event?         // None at the end of input
 async Parser::next_value(self) -> Json?          // next complete value
@@ -85,7 +120,7 @@ struct Position { offset : Int, line : Int, column : Int }
 suberror ParseError {
   UnexpectedChar(Position, Char), UnexpectedEof(Position),
   UnpairedSurrogate(Position), DepthLimitExceeded(Position, Int),
-  TooLong(Position, Int), Interrupted
+  TooLong(Position, Int), InvalidUtf8(Position), Interrupted
 }
 ```
 
@@ -96,9 +131,14 @@ suberror ParseError {
   nothing.
 - Values are the ones `@json.parse` gives: duplicate keys keep the last value,
   and numbers carry `repr` exactly when `@json.parse` would.
-- `Position.offset` counts UTF-16 code units from the start of the stream;
-  `line` is 1-based and `column` 0-based, as in `@json.Position`; `column`
-  counts UTF-16 code units.
+- `Position.offset` counts UTF-16 code units (bytes, for bytes input) from
+  the start of the stream; `line` is 1-based and `column` 0-based, as in
+  `@json.Position`; `column` counts the same units.
+- Bytes input must be well-formed UTF-8, checked as it is scanned: inside a
+  string a malformed sequence raises `InvalidUtf8`; outside one, any
+  non-ASCII character is unexpected anyway. A byte order mark is rejected,
+  as `@json.parse` rejects U+FEFF. `max_string_length` counts UTF-16 code
+  units of the decoded strings for both inputs.
 - After a syntax error every later call raises it again, and the events
   before the error are returned first. An error raised by the source (an I/O
   error) is kept the same way, but the events of the token group being scanned
@@ -130,6 +170,11 @@ number regexes are those of core's lexscan JSON parser. A string is decoded
 only if it contains a backslash; short integers are converted directly, other
 numbers by `@json.parse`, so rounding and `repr` match exactly.
 
+For bytes input the same scanners are written with `reb"..."` regexes. The
+string character class matches exactly the well-formed UTF-8 sequences
+(no overlong forms, no encoded surrogates, nothing above U+10FFFF), so a
+scanned string is decoded without further checks.
+
 The regexes accept exactly the valid groups. When none matches, the parser
 rescans the group token by token with a slow scanner that finds the precise
 error position. The same slow scanner, whose pieces are bounded, does all the
@@ -155,6 +200,26 @@ async refill out of the `lexscan` DFA loop:
 ```bash
 moon run --target native --release cmd/benchmark
 ```
+
+### Bytes input
+
+On compiler master with core main, `cmd/benchmark` also parses the document
+as 2.4 MB of UTF-8 in 64 KiB chunks. The document now has raw non-ASCII text
+in every record, so the text rows differ slightly from the table above.
+Milliseconds, medians of 11 runs:
+
+| target | `@json.parse` text | `@utf8.decode` + `@json.parse` | text `next_value` | bytes `next_value` | bytes events only | bytes, `max_string_length` set |
+| ------ | --- | --- | --- | --- | --- | --- |
+| native | 17  | 18  | 119 | 120 | 106 | 466  |
+| js     | 29  | 30  | 141 | 168 | 136 | 508  |
+| wasm   | 45  | 45  | 326 | 314 | 302 | 1370 |
+
+Bytes input costs about the same as text input on native and wasm, and 19%
+more on js. Its gain is upstream: it reads a `BinaryReader` directly, with no
+`Utf8Reader` decoding pass, and buffers half the memory for ASCII-heavy JSON.
+Reading the same bytes through `@io.MemoryReader` adds 38 ms on native (both
+`from_binary_reader` and `Utf8Reader` + `from_reader`: 158 ms), 50 ms on wasm,
+and about 3 seconds on js, where `MemoryReader` itself dominates.
 
 ### Where the time goes: async compilation
 

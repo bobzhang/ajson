@@ -54,7 +54,7 @@ fn Parser::decode_string(
         }
       }
       e => {
-        sb.write_char(unescape(e))
+        sb.write_char(unescape(e.to_int()))
         i += 2
       }
     }
@@ -68,7 +68,7 @@ fn Parser::decode_string(
 
 ///|
 /// The character a single-character escape `\e` stands for.
-fn unescape(e : UInt16) -> Char {
+fn unescape(e : Int32) -> Char {
   match e {
     'b' => '\b'
     'f' => '\u{0C}'

@@ -2,6 +2,7 @@ import {
   "moonbitlang/core/lexbuf",
   "moonbitlang/core/json",
   "moonbitlang/core/async/io",
+  "moonbitlang/core/encoding/utf8",
 }
 
 import {
