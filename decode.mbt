@@ -21,7 +21,7 @@ fn Parser::decode_string(
   if i == len {
     return body.to_owned()
   }
-  let sb = StringBuilder(size_hint=len)
+  let sb = StringBuilder(capacity=len)
   let mut run = 0
   while i < len {
     if body.unsafe_get(i) != '\\' {
