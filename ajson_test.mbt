@@ -356,12 +356,18 @@ async test "events before an error are returned first" {
 async test "depth limit" {
   let ok = "[".repeat(1024) + "]".repeat(1024)
   let bad = "[".repeat(1025) + "]".repeat(1025)
-  agree(ok, parse_parts([ok]), "1024 deep")
-  agree(bad, parse_parts([bad]), "1025 deep")
-  agree(ok, parse_parts([ok], max_string_length=10), "1024 deep limited")
-  agree(bad, parse_parts([bad], max_string_length=10), "1025 deep limited")
+  // Test our documented limit directly: core Json now defaults to 128.
+  assert_true(parse_parts([ok]) is Ok(_))
+  assert_true(
+    parse_parts([bad]) is Err(@ajson.ParseError::DepthLimitExceeded(_, 1024)),
+  )
+  assert_true(parse_parts([ok], max_string_length=10) is Ok(_))
+  assert_true(
+    parse_parts([bad], max_string_length=10)
+    is Err(@ajson.ParseError::DepthLimitExceeded(_, 1024)),
+  )
   let objects = "{\"a\":".repeat(1024) + "1" + "}".repeat(1024)
-  agree(objects, parse_parts([objects]), "1024 deep objects")
+  assert_true(parse_parts([objects]) is Ok(_))
   debug_inspect(
     parse_parts(["[[{}]]"], max_depth=2),
     content=(

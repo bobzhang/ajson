@@ -60,7 +60,7 @@ fn chunks(doc : String) -> () -> String? {
 }
 
 ///|
-async fn main {
+async fn run() -> Unit {
   let sb = StringBuilder()
   for i in 0..<200000 {
     sb.write_string(", \"key\{i % 10}\": \{i}")
@@ -101,4 +101,9 @@ async fn main {
   println("StringScanner: \{med(t1)} ms")
   println("Lexbuf:        \{med(t2)} ms")
   println("AsyncLexbuf:   \{med(t3)} ms")
+}
+
+///|
+fn main {
+  @async.run_async_main(run)
 }

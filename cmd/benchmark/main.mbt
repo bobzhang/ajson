@@ -46,7 +46,7 @@ async fn median_ms(runs : Int32, f : async () -> Unit) -> Double {
 ///|
 /// Compares `@json.parse` on a whole in-memory string with this parser
 /// reading the same text in 64 KiB chunks.
-async fn main {
+async fn run() -> Unit {
   let doc = make_document(20000)
   let expected = @json.parse(doc)
   let mb = doc.length().to_double() / 1048576.0
@@ -99,4 +99,9 @@ async fn main {
     }),
   )
   ignore(sink)
+}
+
+///|
+fn main {
+  @async.run_async_main(run)
 }
