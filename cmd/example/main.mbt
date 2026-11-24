@@ -5,7 +5,7 @@
 ///   building them.
 /// - `field NAME`: reads newline-delimited JSON and prints field `NAME`
 ///   of each value, or `null`.
-async fn main {
+async fn run() -> Unit {
   match @env.args()[1:] {
     ["count"] => {
       let parser = @ajson.Parser::from_reader(@stdio.stdin.text)
@@ -35,4 +35,9 @@ async fn main {
     }
     _ => fail("usage: example count | example field NAME")
   }
+}
+
+///|
+fn main {
+  @async.run_async_main(run)
 }
